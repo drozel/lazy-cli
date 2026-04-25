@@ -169,6 +169,57 @@ _fzf-docker-service-logs() {
 zle -N _fzf-docker-service-logs
 bindkey '\eL' _fzf-docker-service-logs
 
+# ctrl+w: exec into a swarm service container — service picker → cluster-wide container picker
+_fzf-docker-service-exec() {
+  local service
+  service=$(docker service ls --format '{{.Name}}\t{{.Mode}}\t{{.Replicas}}' 2>/dev/null \
+    | column -t \
+    | fzf --height 40% --reverse --prompt="service> " \
+    | awk '{print $1}')
+  [[ -z "$service" ]] && zle redisplay && return
+
+  local current_context base_name
+  current_context=$(docker context show 2>/dev/null)
+  base_name="${current_context%.*}"
+
+  local entries=()
+  while IFS= read -r ctx; do
+    while IFS= read -r name; do
+      [[ -n "$name" ]] && entries+=("${ctx}	${name}")
+    done < <(docker --context "$ctx" ps --filter "name=$service" \
+      --format '{{.Names}}' 2>/dev/null | grep "^${service}\.")
+  done < <(docker context ls --format '{{.Name}}' 2>/dev/null | grep "^${base_name}")
+
+  [[ ${#entries[@]} -eq 0 ]] && zle redisplay && return
+
+  local selection
+  selection=$(printf '%s\n' "${entries[@]}" \
+    | fzf --height 40% --reverse --prompt="container> " \
+      --delimiter=$'\t' --with-nth='1,2' \
+      --disabled \
+      --header='[e] exec  [i] inspect  [l] logs  [enter] exec' \
+      --expect=e,i,l)
+  [[ -z "$selection" ]] && zle redisplay && return
+
+  local key container_line
+  key=$(printf '%s' "$selection" | head -1)
+  container_line=$(printf '%s' "$selection" | sed -n '2p')
+  [[ -z "$container_line" ]] && zle redisplay && return
+
+  local ctx container
+  ctx=$(printf '%s' "$container_line" | cut -f1)
+  container=$(printf '%s' "$container_line" | cut -f2)
+
+  case "$key" in
+    i) LBUFFER="docker --context $ctx inspect $container" ;;
+    l) LBUFFER="docker --context $ctx logs -f $container" ;;
+    *) LBUFFER="docker --context $ctx exec -it $container bash" ;;
+  esac
+  zle redisplay
+}
+zle -N _fzf-docker-service-exec
+bindkey '^w' _fzf-docker-service-exec
+
 # ctrl+t: pick a Taskfile task
 _fzf-task() {
   local task
@@ -209,6 +260,7 @@ Shell shortcuts:
   ctrl+g   git log browser      (with diff preview)
   ctrl+x   docker context       (local to terminal)
   ctrl+e   docker exec          (into container)
+  ctrl+w   docker service exec  (swarm, cluster-wide)
   ctrl+l   docker logs          (container)
   esc+L    docker service logs  (swarm)
   ctrl+t   task picker

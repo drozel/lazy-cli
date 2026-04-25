@@ -1,18 +1,18 @@
 # lazy-cli
 
-A collection of powerful helper functions for Docker CLI and shell productivity, designed to simplify managing Docker Swarm clusters across multiple contexts.
+A Zsh plugin providing fzf-powered keyboard shortcuts for Docker Swarm and shell productivity.
 
 ## Overview
 
-### Multi-node Context Switching
+### Multi-node container exec (ctrl+w)
 
-The killer feature is automatic context switching between Docker Swarm nodes while searching for containers.
+The main feature is `ctrl+w`: a two-step fzf picker that finds and execs into containers across all nodes of a Swarm cluster — no SSH, no manual context switching.
 
-Managing Docker Swarm clusters typically requires SSH-ing into multiple nodes to find where a specific container is running. lazy-cli automates this tedious process. All you need is:
+Managing Docker Swarm clusters typically requires SSH-ing into multiple nodes to find where a specific container is running. lazy-cli automates this:
 
 - [Docker Contexts](https://docs.docker.com/engine/manage-resources/contexts/) configured for your cluster
-- Multiple contexts named with a namespace pattern: `my-system.1`, `my-system.2`, ..., `my-system.N` (where each represents a Swarm node)
-- Switch to any context in the namespace to start operating with the entire cluster
+- Contexts named with a namespace pattern: `my-system.1`, `my-system.2`, ..., `my-system.N` (one per Swarm node)
+- Switch to any context in the namespace — `ctrl+w` searches the rest automatically
 
 **Before lazy-cli:**
 
@@ -28,21 +28,27 @@ docker exec -it <container_id> bash
 
 **With lazy-cli:**
 
-```bash
-dlazy-exec my-container
-```
+Press `ctrl+w`, pick the service, pick the container — done.
 
-lazy-cli automatically searches across all nodes in the namespace, switches to the correct context, and executes a shell inside the container.
+1. **Service picker** — lists all Swarm services in the current context
+2. **Container picker** — finds matching containers across every node in the namespace; navigate with arrow keys, then:
 
-### fzf Keyboard Shortcuts
+| Key | Action |
+|-----|--------|
+| `e` or Enter | `docker exec -it <container> bash` |
+| `i` | `docker inspect <container>` |
+| `l` | `docker logs -f <container>` |
 
-lazy-cli also provides a set of interactive fzf-powered widgets bound to keyboard shortcuts:
+The command is placed in your prompt buffer so you can review or edit it before running.
+
+### All keyboard shortcuts
 
 | Shortcut | Description |
 |----------|-------------|
 | `ctrl+h` | Toggle a cheatsheet of all shortcuts |
 | `ctrl+x` | Pick a Docker context (session-local, colima first) |
-| `ctrl+e` | Pick a running container and exec into it |
+| `ctrl+w` | Pick a Swarm service → container across nodes → exec / inspect / logs |
+| `ctrl+e` | Pick a running container and exec into it (current context only) |
 | `ctrl+l` | Pick a running container and tail its logs |
 | `esc+L`  | Pick a Docker Swarm service and tail its logs |
 | `ctrl+b` | Git branch picker sorted by most recent commit |
@@ -51,16 +57,21 @@ lazy-cli also provides a set of interactive fzf-powered widgets bound to keyboar
 
 > `ctrl+l` overrides the default clear-screen binding. Use `reset` or `clear` instead.
 
-## Commands
+## Utilities
+
+Two shell functions are available for scripting and bulk operations:
 
 | Command | Description |
 |---------|-------------|
-| `dlazy-help` | Display help information and usage examples |
-| `dlazy-find <container_name>` | Find container(s) by name in the current context (supports partial matching) |
-| `dlazy-find-in-cluster <container_name>` | Search for a container across all contexts in the namespace and switch to the correct node |
-| `dlazy-exec <container_name>` | Execute bash (or sh as fallback) in a container by name, automatically finding it across cluster nodes |
-| `dlazy-foreach-svc <filter> <action>` | Execute an action on all Docker services matching the filter |
+| `dlazy-foreach-svc <filter> <action>` | Run a `docker service` action against all services matching the filter |
 | `docker-context-unset` | Unset the session-local `DOCKER_CONTEXT` override and fall back to the system-wide context |
+
+### Bulk service actions
+
+```zsh
+dlazy-foreach-svc database rm
+# Executes 'docker service rm' for each service with "database" in its name
+```
 
 ## Installation
 
@@ -100,51 +111,18 @@ source ~/.zshrc
 
 ### Manual Installation
 
-Clone this repository and source the plugin file in your `~/.zshrc`:
-
 ```zsh
 git clone https://github.com/drozel/lazy-cli.git ~/.lazy-cli
 echo "source ~/.lazy-cli/dockerlazy.plugin.zsh" >> ~/.zshrc
 source ~/.zshrc
 ```
 
-## Usage Examples
-
-### Find a container by name
-
-```zsh
-dlazy-find myapp
-# Returns container ID(s) matching "myapp" in the current context
-```
-
-### Find a container across cluster contexts
-
-```zsh
-dlazy-find-in-cluster web-server
-# Searches all nodes and switches to the context where the container is running
-```
-
-### Execute a shell in a container
-
-```zsh
-dlazy-exec myapp
-# Finds the container across all nodes and opens an interactive shell
-```
-
-### Perform bulk actions on services
-
-```zsh
-dlazy-foreach-svc database rm
-# Executes 'docker service rm' for each service with "database" in its name
-```
-
 ## Requirements
 
-- Docker CLI installed and configured
-- Zsh shell
-- [fzf](https://github.com/junegunn/fzf) — required for keyboard shortcut widgets
-- Docker contexts set up with namespace pattern (e.g., `cluster.1`, `cluster.2`) for multi-node operations
-- [Task](https://taskfile.dev) — optional, required for `ctrl+t` task picker
+- Docker CLI with contexts configured (namespace pattern `cluster.1`, `cluster.2`, … for multi-node features)
+- Zsh
+- [fzf](https://github.com/junegunn/fzf)
+- [Task](https://taskfile.dev) — optional, for `ctrl+t`
 
 ## License
 
