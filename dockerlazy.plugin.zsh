@@ -169,7 +169,7 @@ _fzf-docker-service-logs() {
 zle -N _fzf-docker-service-logs
 bindkey '\eL' _fzf-docker-service-logs
 
-# ctrl+w: exec into a swarm service container — service picker → cluster-wide container picker
+# ctrl+o: exec into a swarm service container — service picker → cluster-wide container picker
 _fzf-docker-service-exec() {
   local service
   service=$(docker service ls --format '{{.Name}}\t{{.Mode}}\t{{.Replicas}}' 2>/dev/null \
@@ -218,7 +218,7 @@ _fzf-docker-service-exec() {
   zle redisplay
 }
 zle -N _fzf-docker-service-exec
-bindkey '^w' _fzf-docker-service-exec
+bindkey '^o' _fzf-docker-service-exec
 
 # ctrl+t: pick a Taskfile task
 _fzf-task() {
@@ -260,7 +260,7 @@ Shell shortcuts:
   ctrl+g   git log browser      (with diff preview)
   ctrl+x   docker context       (local to terminal)
   ctrl+e   docker exec          (into container)
-  ctrl+w   docker service exec  (swarm, cluster-wide)
+  ctrl+o   docker service exec  (swarm, cluster-wide)
   ctrl+l   docker logs          (container)
   esc+L    docker service logs  (swarm)
   ctrl+t   task picker
