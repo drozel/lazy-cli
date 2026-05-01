@@ -130,53 +130,68 @@ _fzf-git-branch() {
 zle -N _fzf-git-branch
 bindkey '^b' _fzf-git-branch
 
-# ctrl+e: exec into a running container
-_fzf-docker-exec() {
-  local container
-  container=$(docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}' 2>/dev/null \
+# Shared container action: builds LBUFFER from (key, container [, context])
+_LAZY_CONTAINER_HEADER='[enter] exec  [ctrl-l] logs  [ctrl-v] inspect  [ctrl-s] top'
+_LAZY_CONTAINER_EXPECT='ctrl-l,ctrl-v,ctrl-s'
+_lazy-container-action() {
+  local key="$1" container="$2" ctx="$3"
+  local prefix="docker"
+  [[ -n "$ctx" ]] && prefix="docker --context $ctx"
+  case "$key" in
+    ctrl-l) LBUFFER="$prefix logs -f $container" ;;
+    ctrl-v) LBUFFER="$prefix inspect $container | jq" ;;
+    ctrl-s) LBUFFER="$prefix top $container" ;;
+    *)      LBUFFER="$prefix exec -it $container bash" ;;
+  esac
+}
+
+# ctrl+p: container picker — [enter] exec, [ctrl-l] logs, [ctrl-v] inspect, [ctrl-s] top
+_fzf-docker-container() {
+  local fzf_out key container_line container
+
+  fzf_out=$(docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}' 2>/dev/null \
     | tail -n +2 \
-    | fzf --height 40% --reverse --prompt="exec> " \
-    | awk '{print $1}')
-  [[ -n "$container" ]] && LBUFFER="docker exec -it $container bash"
+    | fzf --height 40% --reverse --prompt="container> " \
+      --header="$_LAZY_CONTAINER_HEADER" \
+      --expect="$_LAZY_CONTAINER_EXPECT")
+
+  [[ -z "$fzf_out" ]] && zle redisplay && return
+
+  key=$(printf '%s' "$fzf_out" | head -1)
+  container_line=$(printf '%s' "$fzf_out" | sed -n '2p')
+  [[ -z "$container_line" ]] && zle redisplay && return
+
+  container=$(printf '%s' "$container_line" | awk '{print $1}')
+  [[ -z "$container" ]] && zle redisplay && return
+
+  _lazy-container-action "$key" "$container"
   zle redisplay
 }
-zle -N _fzf-docker-exec
-bindkey '^e' _fzf-docker-exec
+zle -N _fzf-docker-container
+bindkey '^p' _fzf-docker-container
 
-# ctrl+l: tail logs of a running container (overrides clear-screen; use 'reset' or 'clear' instead)
-_fzf-docker-logs() {
-  local container
-  container=$(docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}' 2>/dev/null \
-    | tail -n +2 \
-    | fzf --height 40% --reverse --prompt="logs> " \
-    | awk '{print $1}')
-  [[ -n "$container" ]] && LBUFFER="docker logs -f $container"
-  zle redisplay
-}
-zle -N _fzf-docker-logs
-bindkey '^l' _fzf-docker-logs
-
-# ctrl+shift+l (escape+L): tail logs of a docker swarm service
-_fzf-docker-service-logs() {
-  local service
-  service=$(docker service ls --format 'table {{.Name}}\t{{.Image}}\t{{.Replicas}}' 2>/dev/null \
-    | tail -n +2 \
-    | fzf --height 40% --reverse --prompt="service logs> " \
-    | awk '{print $1}')
-  [[ -n "$service" ]] && LBUFFER="docker service logs -f $service"
-  zle redisplay
-}
-zle -N _fzf-docker-service-logs
-bindkey '\eL' _fzf-docker-service-logs
-
-# ctrl+o: exec into a swarm service container — service picker → cluster-wide container picker
+# ctrl+o: swarm service picker — [enter] containers, [ctrl-l] logs, [ctrl-s] ps, [ctrl-v] inspect
 _fzf-docker-service-exec() {
-  local service
-  service=$(docker service ls --format '{{.Name}}\t{{.Mode}}\t{{.Replicas}}' 2>/dev/null \
+  local fzf_svc key_svc service_line service
+  fzf_svc=$(docker service ls --format '{{.Name}}\t{{.Mode}}\t{{.Replicas}}' 2>/dev/null \
     | column -t \
     | fzf --height 40% --reverse --prompt="service> " \
-    | awk '{print $1}')
+      --header='[enter] containers  [ctrl-l] logs  [ctrl-s] ps  [ctrl-v] inspect' \
+      --expect=ctrl-l,ctrl-s,ctrl-v)
+  [[ -z "$fzf_svc" ]] && zle redisplay && return
+
+  key_svc=$(printf '%s' "$fzf_svc" | head -1)
+  service_line=$(printf '%s' "$fzf_svc" | sed -n '2p')
+  [[ -z "$service_line" ]] && zle redisplay && return
+
+  service=$(printf '%s' "$service_line" | awk '{print $1}')
   [[ -z "$service" ]] && zle redisplay && return
+
+  case "$key_svc" in
+    ctrl-l) LBUFFER="docker service logs -f $service"; zle redisplay; return ;;
+    ctrl-s) LBUFFER="docker service ps $service";      zle redisplay; return ;;
+    ctrl-v) LBUFFER="docker service inspect $service"; zle redisplay; return ;;
+  esac
 
   local current_context base_name
   current_context=$(docker context show 2>/dev/null)
@@ -197,8 +212,8 @@ _fzf-docker-service-exec() {
     | fzf --height 40% --reverse --prompt="container> " \
       --delimiter=$'\t' --with-nth='1,2' \
       --disabled \
-      --header='[e] exec  [i] inspect  [l] logs  [enter] exec' \
-      --expect=e,i,l)
+      --header="$_LAZY_CONTAINER_HEADER" \
+      --expect="$_LAZY_CONTAINER_EXPECT")
   [[ -z "$selection" ]] && zle redisplay && return
 
   local key container_line
@@ -210,11 +225,7 @@ _fzf-docker-service-exec() {
   ctx=$(printf '%s' "$container_line" | cut -f1)
   container=$(printf '%s' "$container_line" | cut -f2)
 
-  case "$key" in
-    i) LBUFFER="docker --context $ctx inspect $container" ;;
-    l) LBUFFER="docker --context $ctx logs -f $container" ;;
-    *) LBUFFER="docker --context $ctx exec -it $container bash" ;;
-  esac
+  _lazy-container-action "$key" "$container" "$ctx"
   zle redisplay
 }
 zle -N _fzf-docker-service-exec
@@ -259,10 +270,8 @@ Shell shortcuts:
   ctrl+b   git branch picker    (by recency)
   ctrl+g   git log browser      (with diff preview)
   ctrl+x   docker context       (local to terminal)
-  ctrl+e   docker exec          (into container)
-  ctrl+o   docker service exec  (swarm, cluster-wide)
-  ctrl+l   docker logs          (container)
-  esc+L    docker service logs  (swarm)
+  ctrl+p   docker container     (exec / logs / inspect / top)
+  ctrl+o   docker swarm         (list of services and quick actions)
   ctrl+t   task picker
   ctrl+h   toggle this help'
   fi

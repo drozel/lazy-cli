@@ -11,14 +11,14 @@ GitHub: `drozel/lazy-cli` — a Zsh plugin that provides Docker Swarm helper fun
 There is no build system or test suite. To validate changes, source the plugin directly in a Zsh session:
 
 ```zsh
-source dockerlazy.plugin.zsh
+source lazy-cli.plugin.zsh
 ```
 
 Then exercise the affected functions or widgets manually. All functionality requires a live Docker daemon.
 
 ## Architecture
 
-Everything lives in a single file: `dockerlazy.plugin.zsh`. It has two distinct sections:
+Everything lives in a single file: `lazy-cli.plugin.zsh`. It has two distinct sections:
 
 **Docker helper functions** (`dlazy-*` prefix):
 - `dlazy-find` — thin wrapper around `docker ps --filter`
@@ -35,6 +35,6 @@ Everything lives in a single file: `dockerlazy.plugin.zsh`. It has two distinct 
 
 ## Key constraints
 
-- The plugin file must be named `dockerlazy.plugin.zsh` — this is the entry point expected by Zinit and Oh-My-Zsh (the Oh-My-Zsh plugin directory is named `lazy-cli` but the file keeps its original name).
+- The plugin file must be named `lazy-cli.plugin.zsh` — this is the entry point expected by Zinit and Oh-My-Zsh (the Oh-My-Zsh plugin directory is named `lazy-cli`).
 - `ctrl+l` intentionally overrides Zsh's default clear-screen binding; this is documented in README and in the inline comment.
 - fzf widgets use `2>/dev/null` on Docker/git calls so the widget degrades silently when outside a repo or when Docker is unavailable.
