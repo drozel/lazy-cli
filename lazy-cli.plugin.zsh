@@ -124,8 +124,12 @@ _fzf-git-branch() {
     | column -t -s '|' \
     | fzf --height 40% --reverse --prompt="branch> " --ansi \
     | awk '{print $NF}')
-  [[ -n "$branch" ]] && LBUFFER="git checkout $branch"
-  zle redisplay
+  if [[ -n "$branch" ]]; then
+    BUFFER="git checkout $branch"
+    zle accept-line
+  else
+    zle redisplay
+  fi
 }
 zle -N _fzf-git-branch
 bindkey '^b' _fzf-git-branch
