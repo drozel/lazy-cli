@@ -241,7 +241,7 @@ _fzf-task() {
   task=$(task --list-all 2>/dev/null \
     | grep '^\*' \
     | fzf --height 40% --reverse --prompt="task> " \
-    | awk '{print $2}' | tr -d ':')
+    | awk '{print $2}' | sed 's/:$//')
   [[ -n "$task" ]] && LBUFFER="task $task"
   zle redisplay
 }
