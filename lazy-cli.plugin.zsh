@@ -235,15 +235,31 @@ _fzf-docker-service-exec() {
 zle -N _fzf-docker-service-exec
 bindkey '^o' _fzf-docker-service-exec
 
-# ctrl+t: pick a Taskfile task
+# ctrl+t: pick a Taskfile task — [enter] run, [alt-enter] paste only
 _fzf-task() {
-  local task
-  task=$(task --list-all 2>/dev/null \
+  local fzf_out key task_line task
+  fzf_out=$(task --list-all 2>/dev/null \
     | grep '^\*' \
     | fzf --height 40% --reverse --prompt="task> " \
-    | awk '{print $2}' | sed 's/:$//')
-  [[ -n "$task" ]] && LBUFFER="task $task"
-  zle redisplay
+      --header='[enter] run  [alt-enter] paste only' \
+      --expect=alt-enter)
+
+  [[ -z "$fzf_out" ]] && zle redisplay && return
+
+  key=$(printf '%s' "$fzf_out" | head -1)
+  task_line=$(printf '%s' "$fzf_out" | sed -n '2p')
+  [[ -z "$task_line" ]] && zle redisplay && return
+
+  task=$(printf '%s' "$task_line" | awk '{print $2}' | sed 's/:$//')
+  [[ -z "$task" ]] && zle redisplay && return
+
+  if [[ "$key" == "alt-enter" ]]; then
+    LBUFFER="task $task"
+    zle redisplay
+  else
+    BUFFER="task $task"
+    zle accept-line
+  fi
 }
 zle -N _fzf-task
 bindkey '^t' _fzf-task
